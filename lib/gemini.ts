@@ -194,6 +194,453 @@ export async function analyzeNegotiationWithGemini(
 
 
 
+function buildCounterOfferPrompt(
+  input: CounterOfferInput,
+): string {
+  const {
+    deal,
+    previousResult,
+    sellerResponse,
+    conversation = [],
+  } = input
+
+  const conversationText =
+    conversation.length > 0
+      ? conversation
+          .map((message) => {
+            const role =
+              message.role === 'buyer'
+                ? 'BUYER'
+                : 'SELLER'
+
+            return `${role}: ${message.content}`
+          })
+          .join('\n\n')
+      : 'No previous conversation.'
+
+  return `
+You are NegotiAI, an AI negotiation strategy assistant
+specializing in consumer negotiations in Indonesia.
+
+This is NOT a new negotiation.
+
+You are analyzing the seller's response to the buyer's
+previous negotiation move.
+
+Your job is to reassess the negotiation situation and
+recommend the buyer's NEXT move.
+
+Use the negotiation principles below.
+
+${NEGOTIATION_PRINCIPLES}
+
+==================================================
+ORIGINAL DEAL
+==================================================
+
+Product:
+${deal.productName}
+
+Seller asking price:
+${formatRupiah(deal.sellerPrice)}
+
+Buyer budget:
+${formatRupiah(deal.budget)}
+
+Product condition:
+${deal.condition}
+
+Platform:
+${deal.platform}
+
+Buyer urgency:
+${deal.urgency}
+
+Buyer willingness to buy:
+${deal.willingnessToBuy}
+
+Buyer has alternatives:
+${deal.hasAlternatives ? 'Yes' : 'No'}
+
+==================================================
+PREVIOUS AI ANALYSIS
+==================================================
+
+Opening price:
+${formatRupiah(previousResult.openingPrice)}
+
+Target price:
+${formatRupiah(previousResult.targetPrice)}
+
+Maximum price:
+${formatRupiah(previousResult.maximumPrice)}
+
+Previous tactic:
+${previousResult.tactic}
+
+Previous strategy:
+${previousResult.strategy}
+
+Previous suggested message:
+${previousResult.suggestedMessage}
+
+==================================================
+NEGOTIATION HISTORY
+==================================================
+
+${conversationText}
+
+==================================================
+SELLER'S RESPONSE
+==================================================
+
+"${sellerResponse}"
+
+==================================================
+YOUR TASK
+==================================================
+
+Analyze the negotiation as an ongoing sequence of moves.
+
+Do NOT analyze the latest seller response in isolation.
+
+Consider:
+
+1. The original seller asking price.
+
+2. The buyer's original budget.
+
+3. The buyer's original opening offer.
+
+4. Every previous buyer concession.
+
+5. Every previous seller concession.
+
+6. The seller's latest position.
+
+7. The buyer's current target price.
+
+8. The buyer's private maximum price.
+
+9. Whether the negotiation gap is becoming smaller.
+
+10. Whether either side appears firm.
+
+11. Whether the buyer still has a meaningful BATNA.
+
+12. Whether continuing the negotiation creates enough
+    benefit to justify another concession.
+
+Determine:
+
+- who has moved more
+- who currently has stronger leverage
+- whether the seller appears flexible
+- whether another concession is justified
+- whether a question is better than another offer
+- whether immediate-close value should be used
+- whether the buyer should stop negotiating
+- whether accepting the seller's latest position is reasonable
+
+Determine:
+
+1. Whether the seller appears flexible.
+2. Whether the seller made a concession.
+3. Whether the seller introduced a counter-offer.
+4. Whether the buyer should continue negotiating.
+5. Whether the buyer should make another concession.
+6. Whether asking a question is better.
+7. Whether the buyer should use immediate-close value.
+8. Whether the buyer should walk away.
+9. What the buyer's next price should be, if a price is appropriate.
+
+Do NOT assume the seller's true reservation price.
+
+Do NOT invent information that is not contained in the
+conversation.
+
+Do NOT claim that the seller is definitely willing to accept
+a certain price.
+
+==================================================
+TACTIC
+==================================================
+
+Choose exactly ONE:
+
+- anchor
+- ask-first
+- interest-based
+- immediate-close
+- counter-offer
+- walk-away
+- no-negotiation
+
+The tactic must reflect the CURRENT negotiation state,
+not simply repeat the previous tactic.
+
+
+
+
+For example:
+
+If the seller gives a counter-offer, "counter-offer" may
+be appropriate.
+
+If the seller refuses to negotiate and the buyer has
+alternatives, "walk-away" may be better.
+
+If the seller asks for the buyer's best price, consider
+whether revealing another price is strategically appropriate.
+
+If the seller has already made a meaningful concession,
+do not automatically demand another large discount.
+
+==================================================
+PRICE RULES
+==================================================
+
+The relationship MUST be:
+
+openingPrice <= targetPrice <= maximumPrice
+
+maximumPrice MUST NOT exceed:
+
+${formatRupiah(deal.budget)}
+
+maximumPrice MUST NOT exceed:
+
+${formatRupiah(deal.sellerPrice)}
+
+Never recommend a price above the buyer's budget.
+
+Do not reveal the buyer's maximum price in the suggested
+message unless the buyer explicitly chooses to do so.
+
+The maximum price represents the buyer's private
+reservation point.
+
+==================================================
+CONCESSION PRINCIPLES
+==================================================
+
+Treat concessions as meaningful negotiation moves.
+
+Do not automatically make another concession after
+every seller response.
+
+When the buyer makes another concession:
+
+- prefer smaller concessions as the negotiation progresses
+- avoid repeatedly increasing the offer by large amounts
+- do not reveal the buyer's reservation point
+- do not move toward the maximum price without strategic reason
+
+If the seller has already made a meaningful concession,
+recognize that concession before recommending another
+buyer concession.
+
+If the seller has not moved at all, do not assume the buyer
+must move again.
+
+If the buyer has already made multiple concessions while
+the seller has barely moved, consider:
+- asking-first
+- interest-based
+- walk-away
+- no-negotiation
+
+The goal is not to maximize the number of negotiation rounds.
+
+The goal is to achieve the best reasonable outcome for
+the buyer while respecting the buyer's reservation point.
+
+==================================================
+COMMUNICATION
+==================================================
+
+Generate a NEW suggested message.
+
+Do not simply repeat the previous message.
+
+The message must directly respond to the seller's latest
+statement.
+
+Make it sound like a natural Indonesian buyer.
+
+Keep it concise.
+
+Do not use:
+- fake urgency
+- fake competing offers
+- invented market prices
+- manipulation
+- threats
+- dishonest claims
+
+Do not make the buyer sound more committed than their
+willingness-to-buy level supports.
+
+If another price is appropriate, use the negotiation context
+to choose it.
+
+If no price should be given yet, ask a useful question.
+
+If walking away is the best decision, provide a polite
+message that maintains the buyer's boundary.
+
+==================================================
+NEXT MOVE
+==================================================
+
+Explain exactly what the buyer should do AFTER sending
+the suggested message.
+
+The next move should be actionable.
+
+For example:
+- wait for the seller's response
+- make a smaller concession
+- ask about included accessories
+- stop negotiating
+- walk away
+- accept if the seller reaches the target
+
+Do not give generic advice.
+
+==================================================
+IMPORTANT
+==================================================
+
+The previous AI strategy is context, not a rule.
+
+You are allowed to change the tactic.
+
+Do not blindly continue negotiating.
+
+The seller's latest response is the most important new
+information.
+
+Return ONLY the structured JSON response.
+`
+}
+
+function validateCounterOfferInput(
+  input: CounterOfferInput,
+): void {
+  if (!input || typeof input !== 'object') {
+    throw new Error('Counter-offer input is required')
+  }
+
+  if (
+    typeof input.sellerResponse !== 'string' ||
+    !input.sellerResponse.trim()
+  ) {
+    throw new Error('Seller response is required')
+  }
+
+  if (!input.deal) {
+    throw new Error('Deal information is required')
+  }
+
+  validateDealInput(input.deal)
+
+  if (!input.previousResult) {
+    throw new Error(
+      'Previous negotiation result is required',
+    )
+  }
+
+  if (
+    !input.conversation ||
+    !Array.isArray(input.conversation)
+  ) {
+    throw new Error(
+      'Conversation history must be an array',
+    )
+  }
+
+  for (const message of input.conversation) {
+    if (
+      !message ||
+      typeof message !== 'object'
+    ) {
+      throw new Error(
+        'Invalid conversation message',
+      )
+    }
+
+    if (
+      message.role !== 'buyer' &&
+      message.role !== 'seller'
+    ) {
+      throw new Error(
+        'Conversation role must be buyer or seller',
+      )
+    }
+
+    if (
+      typeof message.content !== 'string' ||
+      !message.content.trim()
+    ) {
+      throw new Error(
+        'Conversation message content is required',
+      )
+    }
+  }
+}
+
+export async function analyzeCounterOfferWithGemini(
+  input: CounterOfferInput,
+): Promise<NegotiationResult> {
+  validateCounterOfferInput(input)
+
+  const prompt =
+    buildCounterOfferPrompt(input)
+
+  try {
+    const interaction =
+      await ai.interactions.create({
+        model: GEMINI_MODEL,
+        input: prompt,
+
+        response_format: {
+          type: 'text',
+          mime_type: 'application/json',
+          schema:
+            negotiationResponseSchema,
+        },
+      })
+
+    const text =
+      interaction.output_text?.trim() ?? ''
+
+    if (!text) {
+      throw new Error(
+        'Gemini returned an empty response',
+      )
+    }
+
+    return parseGeminiResponse(text)
+  } catch (error) {
+    console.error(
+      'Gemini counter-offer error:',
+      error,
+    )
+
+    if (error instanceof Error) {
+      throw new Error(
+        `Failed to analyze seller response: ${error.message}`,
+      )
+    }
+
+    throw new Error(
+      'Failed to analyze seller response',
+    )
+  }
+}
+
+
 /* -------------------------------------------------------------------------- */
 /* Prompt                                                                     */
 /* -------------------------------------------------------------------------- */

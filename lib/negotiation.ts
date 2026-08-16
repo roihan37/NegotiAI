@@ -91,10 +91,20 @@ export interface NegotiationResult {
   suggestedMessage: string
 }
 
+export type NegotiationRole = 'buyer' | 'seller'
+
+export interface NegotiationMessage {
+  id: string
+  role: NegotiationRole
+  content: string
+  timestamp: string
+}
+
 export interface CounterOfferInput {
   deal: DealInput
   previousResult: NegotiationResult
   sellerResponse: string
+  conversation: NegotiationMessage[]
 }
 
 
