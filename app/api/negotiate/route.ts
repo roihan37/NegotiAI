@@ -112,7 +112,16 @@ export async function POST(request: NextRequest) {
       error instanceof Error
         ? error.message
         : 'Internal server error'
-
+if (message.includes('429')) {
+  return NextResponse.json(
+    {
+      error:
+        'AI is temporarily unavailable because the usage limit has been reached. Please try again later.',
+      code: 'QUOTA_EXCEEDED',
+    },
+    { status: 429 },
+  )
+}
     return NextResponse.json(
       {
         error: message,
