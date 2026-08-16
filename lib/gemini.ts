@@ -15,7 +15,7 @@ import {
   normalizeNegotiationPrices,
 } from './negotiation'
 
-const GEMINI_MODEL = 'gemini-3.6-flash'
+const GEMINI_MODEL = 'gemini-3.5-flash-lite'
 
 const ai = new GoogleGenAI({
   apiKey: process.env.GEMINI_API_KEY,
